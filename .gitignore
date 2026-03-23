@@ -40,7 +40,10 @@ vignettes/*.pdf
 .Renviron
 
 # pkgdown site
-docs/
+# docs/
+
+# macOS
+.DS_Store
 
 # translation temp files
 po/*~
