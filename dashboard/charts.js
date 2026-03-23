@@ -286,7 +286,6 @@ TaxMix.charts = {
     var taxTotals = {};
     rows.forEach(function(r) {
       if (r.YearStart !== yearStart || r.ValueDollars === null) return;
-      if (r.IsDefunct) return;
 
       var include = false;
       if (govLevel === 'Both') include = true;
