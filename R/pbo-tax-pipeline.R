@@ -183,6 +183,8 @@ normalized <- combined |>
   ) |>
   # Remove "Total" jurisdiction rows — validated as sum of state rows
   filter(Jurisdiction != "Total") |>
+  # Remove NA values — these are taxes that didn't exist in those years
+  filter(!is.na(ValueThousands)) |>
   # Select and order columns
   select(
     GovernmentLevel,
