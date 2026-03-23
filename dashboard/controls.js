@@ -190,8 +190,8 @@ TaxMix.controls = {
       el.appendChild(fedGroup);
     }
 
-    // Jurisdictions (panels 4, overview)
-    if (view === 'overview' || view === 'deepdive') {
+    // Jurisdictions (panel 4 only)
+    if (view === 'deepdive') {
       var jurGroup = this.createFilterGroup('Jurisdictions');
 
       // Select all/none
