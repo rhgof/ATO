@@ -11,7 +11,9 @@ TaxMix.controls = {
     view: 'overview',
     govLevel: 'Both',
     showPercentage: false,
+    showBothDetail: false,
     paretoYear: 2022,
+    statesYear: 2022,
     deepDiveTax: null,
     selectedFederalGroups: {},
     selectedJurisdictions: {},
@@ -53,10 +55,12 @@ TaxMix.controls = {
 
       // Set defaults
       var years = self.state.metadata.years;
-      self.state.paretoYear = years[years.length - 1].start;
+      var latestYear = years[years.length - 1].start;
+      self.state.paretoYear = latestYear;
+      self.state.statesYear = latestYear;
 
       // Default deep dive to largest state tax
-      self.state.deepDiveTax = self.state.metadata.stateTaxes[0] || self.state.metadata.federalTaxes[0];
+      self.state.deepDiveTax = 'State/Territory/Local|' + (self.state.metadata.stateTaxes[0] || self.state.metadata.federalTaxes[0]);
 
       self.state.metadata.federalGroups.forEach(function(g) {
         self.state.selectedFederalGroups[g] = true;
@@ -106,7 +110,7 @@ TaxMix.controls = {
     var tabDefs = [
       { id: 'overview', label: 'Overview' },
       { id: 'taxmix', label: 'Tax Mix' },
-      { id: 'fedstate', label: 'Fed vs State' },
+      { id: 'states', label: 'States' },
       { id: 'pareto', label: 'Pareto' },
       { id: 'deepdive', label: 'Deep Dive' }
     ];
@@ -159,7 +163,7 @@ TaxMix.controls = {
     var self = this;
     var view = this.state.view;
 
-    // Government Level toggle (panels 1, 3, overview)
+    // Government Level toggle (overview, taxmix, pareto)
     if (view === 'overview' || view === 'taxmix' || view === 'pareto') {
       var govGroup = this.createFilterGroup('Gov Level');
       ['Federal', 'State', 'Both'].forEach(function(level) {
@@ -176,21 +180,97 @@ TaxMix.controls = {
       el.appendChild(govGroup);
     }
 
-    // Federal Group checkboxes (panel 1 when Federal selected)
-    if ((view === 'overview' || view === 'taxmix') && this.state.govLevel === 'Federal') {
-      var fedGroup = this.createFilterGroup('Federal Group');
-      this.state.metadata.federalGroups.forEach(function(g) {
-        var item = self.createCheckbox(g, self.state.selectedFederalGroups[g],
-          self.state.colorMap[g], function(checked) {
-            self.state.selectedFederalGroups[g] = checked;
-            TaxMix.charts.updateAll(self.state);
-          });
-        fedGroup.appendChild(item);
+    // Abs/% toggle (taxmix, states)
+    if (view === 'taxmix' || view === 'states') {
+      var pctGroup = this.createFilterGroup('Display');
+      ['Absolute ($)', 'Share (%)'].forEach(function(label, idx) {
+        var btn = document.createElement('button');
+        var isActive = (idx === 0 && !self.state.showPercentage) || (idx === 1 && self.state.showPercentage);
+        btn.className = 'taxmix-toggle-btn' + (isActive ? ' active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', function() {
+          self.state.showPercentage = idx === 1;
+          self.renderFilters();
+          TaxMix.charts.updateAll(self.state);
+        });
+        pctGroup.appendChild(btn);
       });
-      el.appendChild(fedGroup);
+      el.appendChild(pctGroup);
     }
 
-    // Jurisdictions (panel 4 only)
+    // Detail toggle (taxmix when Both or Federal selected)
+    if (view === 'taxmix' && (this.state.govLevel === 'Both' || this.state.govLevel === 'Federal')) {
+      var detailGroup = this.createFilterGroup('Detail');
+      ['Summary', 'Detail'].forEach(function(label, idx) {
+        var btn = document.createElement('button');
+        var isActive = (idx === 0 && !self.state.showBothDetail) || (idx === 1 && self.state.showBothDetail);
+        btn.className = 'taxmix-toggle-btn' + (isActive ? ' active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', function() {
+          self.state.showBothDetail = idx === 1;
+          self.renderFilters();
+          TaxMix.charts.updateAll(self.state);
+        });
+        detailGroup.appendChild(btn);
+      });
+      el.appendChild(detailGroup);
+    }
+
+    // Year slider (pareto)
+    if (view === 'pareto') {
+      var yearGroup = this.createFilterGroup('Year');
+      var slider = document.createElement('input');
+      slider.type = 'range';
+      slider.className = 'taxmix-year-slider';
+      slider.min = this.state.metadata.years[0].start;
+      slider.max = this.state.metadata.years[this.state.metadata.years.length - 1].start;
+      slider.value = this.state.paretoYear;
+
+      var yearLabel = document.createElement('span');
+      yearLabel.className = 'taxmix-year-label';
+      var fy = this.state.metadata.years.find(function(y) { return y.start === self.state.paretoYear; });
+      yearLabel.textContent = fy ? fy.fiscal : self.state.paretoYear;
+
+      slider.addEventListener('input', function() {
+        self.state.paretoYear = parseInt(slider.value);
+        var fy = self.state.metadata.years.find(function(y) { return y.start === self.state.paretoYear; });
+        yearLabel.textContent = fy ? fy.fiscal : self.state.paretoYear;
+        TaxMix.charts.updateAll(self.state);
+      });
+
+      yearGroup.appendChild(slider);
+      yearGroup.appendChild(yearLabel);
+      el.appendChild(yearGroup);
+    }
+
+    // Year slider (states)
+    if (view === 'states') {
+      var stYearGroup = this.createFilterGroup('Year');
+      var stSlider = document.createElement('input');
+      stSlider.type = 'range';
+      stSlider.className = 'taxmix-year-slider';
+      stSlider.min = this.state.metadata.years[0].start;
+      stSlider.max = this.state.metadata.years[this.state.metadata.years.length - 1].start;
+      stSlider.value = this.state.statesYear;
+
+      var stYearLabel = document.createElement('span');
+      stYearLabel.className = 'taxmix-year-label';
+      var stFy = this.state.metadata.years.find(function(y) { return y.start === self.state.statesYear; });
+      stYearLabel.textContent = stFy ? stFy.fiscal : self.state.statesYear;
+
+      stSlider.addEventListener('input', function() {
+        self.state.statesYear = parseInt(stSlider.value);
+        var fy = self.state.metadata.years.find(function(y) { return y.start === self.state.statesYear; });
+        stYearLabel.textContent = fy ? fy.fiscal : self.state.statesYear;
+        TaxMix.charts.updateAll(self.state);
+      });
+
+      stYearGroup.appendChild(stSlider);
+      stYearGroup.appendChild(stYearLabel);
+      el.appendChild(stYearGroup);
+    }
+
+    // Jurisdictions (deep dive only)
     if (view === 'deepdive') {
       var jurGroup = this.createFilterGroup('Jurisdictions');
 
@@ -230,34 +310,7 @@ TaxMix.controls = {
       el.appendChild(jurGroup);
     }
 
-    // Year slider (panel 3 / pareto)
-    if (view === 'pareto') {
-      var yearGroup = this.createFilterGroup('Year');
-      var slider = document.createElement('input');
-      slider.type = 'range';
-      slider.className = 'taxmix-year-slider';
-      slider.min = this.state.metadata.years[0].start;
-      slider.max = this.state.metadata.years[this.state.metadata.years.length - 1].start;
-      slider.value = this.state.paretoYear;
-
-      var yearLabel = document.createElement('span');
-      yearLabel.className = 'taxmix-year-label';
-      var fy = this.state.metadata.years.find(function(y) { return y.start === self.state.paretoYear; });
-      yearLabel.textContent = fy ? fy.fiscal : self.state.paretoYear;
-
-      slider.addEventListener('input', function() {
-        self.state.paretoYear = parseInt(slider.value);
-        var fy = self.state.metadata.years.find(function(y) { return y.start === self.state.paretoYear; });
-        yearLabel.textContent = fy ? fy.fiscal : self.state.paretoYear;
-        TaxMix.charts.updateAll(self.state);
-      });
-
-      yearGroup.appendChild(slider);
-      yearGroup.appendChild(yearLabel);
-      el.appendChild(yearGroup);
-    }
-
-    // Tax dropdown (panel 4 / deep dive)
+    // Tax dropdown (deep dive)
     if (view === 'deepdive') {
       var taxGroup = this.createFilterGroup('Tax');
       var select = document.createElement('select');
@@ -266,10 +319,11 @@ TaxMix.controls = {
       var stateOptGroup = document.createElement('optgroup');
       stateOptGroup.label = 'State/Territory/Local';
       this.state.metadata.stateTaxes.forEach(function(t) {
+        var val = 'State/Territory/Local|' + t;
         var opt = document.createElement('option');
-        opt.value = t;
+        opt.value = val;
         opt.textContent = t;
-        if (t === self.state.deepDiveTax) opt.selected = true;
+        if (val === self.state.deepDiveTax) opt.selected = true;
         stateOptGroup.appendChild(opt);
       });
       select.appendChild(stateOptGroup);
@@ -277,10 +331,11 @@ TaxMix.controls = {
       var fedOptGroup = document.createElement('optgroup');
       fedOptGroup.label = 'Australian Government';
       this.state.metadata.federalTaxes.forEach(function(t) {
+        var val = 'Australian Government|' + t;
         var opt = document.createElement('option');
-        opt.value = t;
+        opt.value = val;
         opt.textContent = t;
-        if (t === self.state.deepDiveTax) opt.selected = true;
+        if (val === self.state.deepDiveTax) opt.selected = true;
         fedOptGroup.appendChild(opt);
       });
       select.appendChild(fedOptGroup);
@@ -292,24 +347,6 @@ TaxMix.controls = {
 
       taxGroup.appendChild(select);
       el.appendChild(taxGroup);
-    }
-
-    // Absolute/Percentage toggle (panel 2)
-    if (view === 'fedstate') {
-      var pctGroup = this.createFilterGroup('Display');
-      ['Absolute ($)', 'Share (%)'].forEach(function(label, idx) {
-        var btn = document.createElement('button');
-        var isActive = (idx === 0 && !self.state.showPercentage) || (idx === 1 && self.state.showPercentage);
-        btn.className = 'taxmix-toggle-btn' + (isActive ? ' active' : '');
-        btn.textContent = label;
-        btn.addEventListener('click', function() {
-          self.state.showPercentage = idx === 1;
-          self.renderFilters();
-          TaxMix.charts.updateAll(self.state);
-        });
-        pctGroup.appendChild(btn);
-      });
-      el.appendChild(pctGroup);
     }
   },
 
@@ -361,7 +398,7 @@ TaxMix.controls = {
 
       var panels = [
         { id: 'taxmix', label: 'Tax Mix Over Time' },
-        { id: 'fedstate', label: 'Federal vs State' },
+        { id: 'states', label: 'State Comparison' },
         { id: 'pareto', label: 'Tax Pareto' },
         { id: 'deepdive', label: 'Deep Dive' }
       ];

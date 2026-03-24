@@ -28,7 +28,7 @@ TaxMix.charts = {
       margin: { t: opts.title ? 35 : 10, r: opts.rightAxis ? 60 : 20, b: 50, l: 70 },
       hovermode: 'closest',
       showlegend: opts.showLegend !== false,
-      legend: { orientation: 'h', y: -0.15, font: { size: 11 } },
+      legend: { orientation: 'h', y: -0.15, xanchor: 'left', x: 0, font: { size: 11 } },
       xaxis: {
         title: { text: opts.xTitle || '', automargin: true },
         automargin: true
@@ -66,10 +66,15 @@ TaxMix.charts = {
     var govLevel = state.govLevel;
     var rows = state.allRows;
     var colorMap = state.colorMap;
+    var showPct = state.showPercentage;
+    var showDetail = state.showBothDetail;
     var years = state.metadata.years.map(function(y) { return y.start; });
+    var fmt = TaxMix.charts.formatValue;
 
-    if (govLevel === 'Both') {
-      // Two layers: Federal total, State total
+    var categories, getCategory, filterFn;
+
+    if (govLevel === 'Both' && !showDetail) {
+      // Summary: two layers — Federal total, State total
       var fedByYear = {};
       var stateByYear = {};
       years.forEach(function(y) { fedByYear[y] = 0; stateByYear[y] = 0; });
@@ -79,32 +84,159 @@ TaxMix.charts = {
         if (r.GovernmentLevel === 'Australian Government' && r.FederalGroup) {
           fedByYear[r.YearStart] = (fedByYear[r.YearStart] || 0) + r.ValueDollars;
         } else if (r.GovernmentLevel === 'State/Territory/Local') {
-          // Include ALL state taxes (even defunct) for accurate totals
           stateByYear[r.YearStart] = (stateByYear[r.YearStart] || 0) + r.ValueDollars;
         }
       });
 
+      if (showPct) {
+        return [
+          {
+            x: years,
+            y: years.map(function(y) {
+              var total = fedByYear[y] + stateByYear[y];
+              return total > 0 ? (fedByYear[y] / total * 100) : 0;
+            }),
+            name: 'Federal', stackgroup: 'one', fillcolor: colorMap['Federal'],
+            line: { color: colorMap['Federal'], width: 0.5 },
+            customdata: years.map(function(y) {
+              var total = fedByYear[y] + stateByYear[y];
+              var pct = total > 0 ? (fedByYear[y] / total * 100) : 0;
+              return fmt(fedByYear[y]) + ' (' + pct.toFixed(1) + '%)';
+            }),
+            hovertemplate: 'Federal<br>%{x}<br>%{customdata}<extra></extra>'
+          },
+          {
+            x: years,
+            y: years.map(function(y) {
+              var total = fedByYear[y] + stateByYear[y];
+              return total > 0 ? (stateByYear[y] / total * 100) : 0;
+            }),
+            name: 'State', stackgroup: 'one', fillcolor: colorMap['State'],
+            line: { color: colorMap['State'], width: 0.5 },
+            customdata: years.map(function(y) {
+              var total = fedByYear[y] + stateByYear[y];
+              var pct = total > 0 ? (stateByYear[y] / total * 100) : 0;
+              return fmt(stateByYear[y]) + ' (' + pct.toFixed(1) + '%)';
+            }),
+            hovertemplate: 'State<br>%{x}<br>%{customdata}<extra></extra>'
+          }
+        ];
+      }
+
       return [
-        {
-          x: years, y: years.map(function(y) { return stateByYear[y] || 0; }),
-          name: 'State', stackgroup: 'one', fillcolor: colorMap['State'],
-          line: { color: colorMap['State'], width: 0.5 },
-          hovertemplate: 'State<br>%{x}<br>%{customdata}<extra></extra>',
-          customdata: years.map(function(y) { return TaxMix.charts.formatValue(stateByYear[y]); })
-        },
         {
           x: years, y: years.map(function(y) { return fedByYear[y] || 0; }),
           name: 'Federal', stackgroup: 'one', fillcolor: colorMap['Federal'],
           line: { color: colorMap['Federal'], width: 0.5 },
-          hovertemplate: 'Federal<br>%{x}<br>%{customdata}<extra></extra>',
-          customdata: years.map(function(y) { return TaxMix.charts.formatValue(fedByYear[y]); })
+          customdata: years.map(function(y) {
+            var total = fedByYear[y] + stateByYear[y];
+            var pct = total > 0 ? (fedByYear[y] / total * 100) : 0;
+            return fmt(fedByYear[y]) + ' (' + pct.toFixed(1) + '%)';
+          }),
+          hovertemplate: 'Federal<br>%{x}<br>%{customdata}<extra></extra>'
+        },
+        {
+          x: years, y: years.map(function(y) { return stateByYear[y] || 0; }),
+          name: 'State', stackgroup: 'one', fillcolor: colorMap['State'],
+          line: { color: colorMap['State'], width: 0.5 },
+          customdata: years.map(function(y) {
+            var total = fedByYear[y] + stateByYear[y];
+            var pct = total > 0 ? (stateByYear[y] / total * 100) : 0;
+            return fmt(stateByYear[y]) + ' (' + pct.toFixed(1) + '%)';
+          }),
+          hovertemplate: 'State<br>%{x}<br>%{customdata}<extra></extra>'
         }
       ];
     }
 
+    if (govLevel === 'Both' && showDetail) {
+      // Detail: all individual taxes, State first then Federal
+      var stateCategories = state.metadata.stateTaxes.filter(function(t) {
+        return TaxMix.data.DEFUNCT_STATE_TAXES.indexOf(t) === -1;
+      });
+      var fedCategories = state.metadata.federalTaxes.slice();
+
+      // Build aggregates: state taxes summed across jurisdictions, federal by individual tax
+      var stateByCatYear = {};
+      stateCategories.forEach(function(c) { stateByCatYear[c] = {}; });
+      var fedByCatYear = {};
+      fedCategories.forEach(function(c) { fedByCatYear[c] = {}; });
+
+      rows.forEach(function(r) {
+        if (r.ValueDollars === null) return;
+        if (r.GovernmentLevel === 'State/Territory/Local' && !r.IsDefunct && stateByCatYear[r.TaxName]) {
+          stateByCatYear[r.TaxName][r.YearStart] = (stateByCatYear[r.TaxName][r.YearStart] || 0) + r.ValueDollars;
+        } else if (r.GovernmentLevel === 'Australian Government' && r.FederalGroup && fedByCatYear[r.TaxName] !== undefined) {
+          fedByCatYear[r.TaxName][r.YearStart] = (fedByCatYear[r.TaxName][r.YearStart] || 0) + r.ValueDollars;
+        }
+      });
+
+      // Sort each group by total descending
+      var sortByTotal = function(cats, byCatYear) {
+        return cats.slice().sort(function(a, b) {
+          var totalA = 0, totalB = 0;
+          years.forEach(function(y) { totalA += byCatYear[a][y] || 0; totalB += byCatYear[b][y] || 0; });
+          return totalB - totalA;
+        });
+      };
+
+      stateCategories = sortByTotal(stateCategories, stateByCatYear);
+      fedCategories = sortByTotal(fedCategories, fedByCatYear);
+
+      // Compute year totals for percentage mode
+      var yearTotals = {};
+      if (showPct) {
+        years.forEach(function(y) {
+          var total = 0;
+          stateCategories.forEach(function(c) { total += stateByCatYear[c][y] || 0; });
+          fedCategories.forEach(function(c) { total += fedByCatYear[c][y] || 0; });
+          yearTotals[y] = total;
+        });
+      }
+
+      var traces = [];
+
+      // Federal traces first (bottom of stack)
+      fedCategories.forEach(function(cat) {
+        var vals = years.map(function(y) {
+          var v = fedByCatYear[cat][y] || 0;
+          return showPct && yearTotals[y] > 0 ? (v / yearTotals[y] * 100) : v;
+        });
+        traces.push({
+          x: years, y: vals, name: cat + ' (Federal)', stackgroup: 'one',
+          fillcolor: colorMap[cat], line: { color: colorMap[cat], width: 0.5 },
+          customdata: years.map(function(y) { return fmt(fedByCatYear[cat][y] || 0); }),
+          hovertemplate: cat + ' (Federal)<br>%{x}<br>%{customdata}<extra></extra>'
+        });
+      });
+
+      // State traces on top
+      stateCategories.forEach(function(cat) {
+        var vals = years.map(function(y) {
+          var v = stateByCatYear[cat][y] || 0;
+          return showPct && yearTotals[y] > 0 ? (v / yearTotals[y] * 100) : v;
+        });
+        traces.push({
+          x: years, y: vals, name: cat + ' (State)', stackgroup: 'one',
+          fillcolor: colorMap[cat], line: { color: colorMap[cat], width: 0.5 },
+          customdata: years.map(function(y) { return fmt(stateByCatYear[cat][y] || 0); }),
+          hovertemplate: cat + ' (State)<br>%{x}<br>%{customdata}<extra></extra>'
+        });
+      });
+
+      return traces;
+    }
+
     // Federal or State mode: stack by category
-    var categories, getCategory, filterFn;
-    if (govLevel === 'Federal') {
+    if (govLevel === 'Federal' && showDetail) {
+      // Detail: individual federal taxes
+      categories = state.metadata.federalTaxes.slice();
+      getCategory = function(r) { return r.TaxName; };
+      filterFn = function(r) {
+        return r.GovernmentLevel === 'Australian Government' && r.FederalGroup
+          && state.selectedFederalGroups[r.FederalGroup];
+      };
+    } else if (govLevel === 'Federal') {
       categories = state.metadata.federalGroups.filter(function(g) {
         return state.selectedFederalGroups[g];
       });
@@ -114,7 +246,6 @@ TaxMix.charts = {
           && state.selectedFederalGroups[r.FederalGroup];
       };
     } else {
-      // State mode: exclude defunct taxes from stacked view
       categories = state.metadata.stateTaxes.filter(function(t) {
         return TaxMix.data.DEFUNCT_STATE_TAXES.indexOf(t) === -1;
       });
@@ -144,126 +275,149 @@ TaxMix.charts = {
       return totalB - totalA;
     });
 
+    // Compute year totals for percentage mode
+    var yearTotals2 = {};
+    if (showPct) {
+      years.forEach(function(y) {
+        var total = 0;
+        categories.forEach(function(c) { total += byCatYear[c][y] || 0; });
+        yearTotals2[y] = total;
+      });
+    }
+
     return categories.map(function(cat) {
-      var vals = years.map(function(y) { return byCatYear[cat][y] || 0; });
+      var vals = years.map(function(y) {
+        var v = byCatYear[cat][y] || 0;
+        return showPct && yearTotals2[y] > 0 ? (v / yearTotals2[y] * 100) : v;
+      });
       return {
         x: years, y: vals, name: cat, stackgroup: 'one',
         fillcolor: colorMap[cat],
         line: { color: colorMap[cat], width: 0.5 },
-        hovertemplate: cat + '<br>%{x}<br>%{customdata}<extra></extra>',
-        customdata: vals.map(function(v) { return TaxMix.charts.formatValue(v); })
+        customdata: years.map(function(y) { return fmt(byCatYear[cat][y] || 0); }),
+        hovertemplate: cat + '<br>%{x}<br>%{customdata}<extra></extra>'
       };
     });
   },
 
   updateTaxMix: function(state, divId, isOverview) {
     var traces = this.buildTaxMix(state);
+    var yTitle = state.showPercentage ? 'Share (%)' : 'Revenue';
     var layout = this.baseLayout({
-      xTitle: 'Year', yTitle: 'Revenue',
+      xTitle: 'Year', yTitle: yTitle,
       showLegend: !isOverview, title: isOverview
     });
     if (isOverview) layout.title = { text: 'Tax Mix Over Time', font: { size: 13 } };
+    if (state.showPercentage) {
+      layout.yaxis.range = [0, 100];
+      layout.yaxis.ticksuffix = '%';
+    }
     if (isOverview) this.render(divId, traces, layout);
     else this.renderDetail(divId, traces, layout);
   },
 
   // =========================================================================
-  // Panel 2: Federal vs State Share (Stacked Area / %)
+  // Panel 2: State Comparison (Stacked Bar)
   // =========================================================================
 
-  buildFedState: function(state) {
-    var rows = state.allRows;
-    var years = state.metadata.years.map(function(y) { return y.start; });
+  buildStateComparison: function(state) {
+    var yearStart = state.statesYear;
     var showPct = state.showPercentage;
+    var rows = state.allRows;
     var colorMap = state.colorMap;
-
-    var fedByYear = {};
-    var stateByYear = {};
-    years.forEach(function(y) { fedByYear[y] = 0; stateByYear[y] = 0; });
-
-    // Include ALL taxes (including defunct) for accurate historical totals
-    rows.forEach(function(r) {
-      if (r.ValueDollars === null) return;
-      if (r.GovernmentLevel === 'Australian Government' && r.FederalGroup) {
-        fedByYear[r.YearStart] = (fedByYear[r.YearStart] || 0) + r.ValueDollars;
-      } else if (r.GovernmentLevel === 'State/Territory/Local') {
-        stateByYear[r.YearStart] = (stateByYear[r.YearStart] || 0) + r.ValueDollars;
-      }
-    });
-
     var fmt = TaxMix.charts.formatValue;
 
-    if (showPct) {
-      return [
-        {
-          x: years,
-          y: years.map(function(y) {
-            var total = fedByYear[y] + stateByYear[y];
-            return total > 0 ? (stateByYear[y] / total * 100) : 0;
-          }),
-          name: 'State', stackgroup: 'one',
-          fillcolor: colorMap['State'], line: { color: colorMap['State'], width: 0.5 },
-          customdata: years.map(function(y) {
-            var total = fedByYear[y] + stateByYear[y];
-            var pct = total > 0 ? (stateByYear[y] / total * 100) : 0;
-            return fmt(stateByYear[y]) + ' (' + pct.toFixed(1) + '%)';
-          }),
-          hovertemplate: 'State<br>%{x}<br>%{customdata}<extra></extra>'
-        },
-        {
-          x: years,
-          y: years.map(function(y) {
-            var total = fedByYear[y] + stateByYear[y];
-            return total > 0 ? (fedByYear[y] / total * 100) : 0;
-          }),
-          name: 'Federal', stackgroup: 'one',
-          fillcolor: colorMap['Federal'], line: { color: colorMap['Federal'], width: 0.5 },
-          customdata: years.map(function(y) {
-            var total = fedByYear[y] + stateByYear[y];
-            var pct = total > 0 ? (fedByYear[y] / total * 100) : 0;
-            return fmt(fedByYear[y]) + ' (' + pct.toFixed(1) + '%)';
-          }),
-          hovertemplate: 'Federal<br>%{x}<br>%{customdata}<extra></extra>'
-        }
-      ];
-    }
+    var jurisdictions = state.metadata.jurisdictions;
 
-    // Absolute mode — show both value and percentage in tooltip
-    return [
-      {
-        x: years,
-        y: years.map(function(y) { return stateByYear[y]; }),
-        name: 'State', stackgroup: 'one',
-        fillcolor: colorMap['State'], line: { color: colorMap['State'], width: 0.5 },
-        customdata: years.map(function(y) {
-          var total = fedByYear[y] + stateByYear[y];
-          var pct = total > 0 ? (stateByYear[y] / total * 100) : 0;
-          return fmt(stateByYear[y]) + ' (' + pct.toFixed(1) + '%)';
-        }),
-        hovertemplate: 'State<br>%{x}<br>%{customdata}<extra></extra>'
-      },
-      {
-        x: years,
-        y: years.map(function(y) { return fedByYear[y]; }),
-        name: 'Federal', stackgroup: 'one',
-        fillcolor: colorMap['Federal'], line: { color: colorMap['Federal'], width: 0.5 },
-        customdata: years.map(function(y) {
-          var total = fedByYear[y] + stateByYear[y];
-          var pct = total > 0 ? (fedByYear[y] / total * 100) : 0;
-          return fmt(fedByYear[y]) + ' (' + pct.toFixed(1) + '%)';
-        }),
-        hovertemplate: 'Federal<br>%{x}<br>%{customdata}<extra></extra>'
-      }
-    ];
+    // Always show state tax categories by jurisdiction
+    var categories = state.metadata.stateTaxes.filter(function(t) {
+      return TaxMix.data.DEFUNCT_STATE_TAXES.indexOf(t) === -1;
+    });
+    var getCategory = function(r) { return r.TaxName; };
+    var filterFn = function(r) {
+      return r.GovernmentLevel === 'State/Territory/Local' && !r.IsDefunct;
+    };
+
+    // Aggregate by jurisdiction and category for the selected year
+    // For federal taxes, the jurisdiction is "Australian Government" — spread evenly or show as single bar
+    // Actually, federal taxes don't break down by state jurisdiction — so for "Federal" and "Both" modes,
+    // we can only show one bar for the whole country
+    // For state taxes, we have per-jurisdiction data
+
+    // Build data: byJurCat[jurisdiction][category] = value
+    var byJurCat = {};
+    jurisdictions.forEach(function(j) {
+      byJurCat[j] = {};
+      categories.forEach(function(c) { byJurCat[j][c] = 0; });
+    });
+
+    rows.forEach(function(r) {
+      if (r.YearStart !== yearStart || r.ValueDollars === null) return;
+      if (!filterFn(r)) return;
+      var cat = getCategory(r);
+      if (categories.indexOf(cat) === -1) return;
+      var jur = r.Jurisdiction;
+      if (jur === 'Australian Government') return; // Federal has no state breakdown
+      if (!byJurCat[jur]) return;
+      byJurCat[jur][cat] = (byJurCat[jur][cat] || 0) + r.ValueDollars;
+    });
+
+    // Compute totals per jurisdiction for percentage mode
+    var jurTotals = {};
+    jurisdictions.forEach(function(j) {
+      var total = 0;
+      categories.forEach(function(c) { total += byJurCat[j][c] || 0; });
+      jurTotals[j] = total;
+    });
+
+    // Filter to categories that have some data
+    var activeCategories = categories.filter(function(c) {
+      var hasData = false;
+      jurisdictions.forEach(function(j) {
+        if (byJurCat[j][c] > 0) hasData = true;
+      });
+      return hasData;
+    });
+
+    // Sort categories by total across jurisdictions (largest at bottom)
+    activeCategories.sort(function(a, b) {
+      var totalA = 0, totalB = 0;
+      jurisdictions.forEach(function(j) { totalA += byJurCat[j][a] || 0; totalB += byJurCat[j][b] || 0; });
+      return totalB - totalA;
+    });
+
+    var jurLabels = jurisdictions.map(function(j) {
+      return TaxMix.data.JURISDICTION_ABBREV[j] || j;
+    });
+
+    return activeCategories.map(function(cat) {
+      var vals = jurisdictions.map(function(j) {
+        var v = byJurCat[j][cat] || 0;
+        return showPct && jurTotals[j] > 0 ? (v / jurTotals[j] * 100) : v;
+      });
+      return {
+        x: jurLabels, y: vals, name: cat, type: 'bar',
+        marker: { color: colorMap[cat] || '#999' },
+        customdata: jurisdictions.map(function(j) { return fmt(byJurCat[j][cat] || 0); }),
+        hovertemplate: cat + '<br>%{x}<br>%{customdata}<extra></extra>'
+      };
+    });
   },
 
-  updateFedState: function(state, divId, isOverview) {
-    var traces = this.buildFedState(state);
+  updateStateComparison: function(state, divId, isOverview) {
+    var traces = this.buildStateComparison(state);
+    var fiscalYear = state.metadata.years.find(function(y) {
+      return y.start === state.statesYear;
+    });
+    var yearLabel = fiscalYear ? fiscalYear.fiscal : state.statesYear;
+    var yTitle = state.showPercentage ? 'Share (%)' : 'Revenue';
+
     var layout = this.baseLayout({
-      xTitle: 'Year', yTitle: state.showPercentage ? 'Share (%)' : 'Revenue',
+      xTitle: '', yTitle: yTitle,
       showLegend: !isOverview, title: isOverview
     });
-    if (isOverview) layout.title = { text: 'Federal vs State', font: { size: 13 } };
+    layout.barmode = 'stack';
+    if (isOverview) layout.title = { text: 'States (' + yearLabel + ')', font: { size: 13 } };
     if (state.showPercentage) {
       layout.yaxis.range = [0, 100];
       layout.yaxis.ticksuffix = '%';
@@ -375,16 +529,20 @@ TaxMix.charts = {
   // =========================================================================
 
   buildDeepDive: function(state) {
-    var taxName = state.deepDiveTax;
+    var parts = (state.deepDiveTax || '').split('|');
+    var govLevel = parts[0];
+    var taxName = parts[1] || parts[0];
     var rows = state.allRows;
     var colorMap = state.colorMap;
     var years = state.metadata.years.map(function(y) { return y.start; });
     var fmt = TaxMix.charts.formatValue;
 
-    var taxRows = rows.filter(function(r) { return r.TaxName === taxName; });
+    var taxRows = rows.filter(function(r) {
+      return r.TaxName === taxName && r.GovernmentLevel === govLevel;
+    });
     if (taxRows.length === 0) return [];
 
-    var isFederal = taxRows[0].GovernmentLevel === 'Australian Government';
+    var isFederal = govLevel === 'Australian Government';
 
     if (isFederal) {
       var byYear = {};
@@ -431,12 +589,25 @@ TaxMix.charts = {
 
   updateDeepDive: function(state, divId, isOverview) {
     var traces = this.buildDeepDive(state);
+    var years = state.metadata.years;
+    var minYear = years[0].start;
+    var maxYear = years[years.length - 1].start;
+
+    // Find max value across all traces for stable y-axis
+    var maxVal = 0;
+    traces.forEach(function(t) {
+      if (t.y) t.y.forEach(function(v) { if (v !== null && v > maxVal) maxVal = v; });
+    });
+
     var layout = this.baseLayout({
       xTitle: 'Year', yTitle: 'Revenue',
       showLegend: !isOverview, title: isOverview
     });
+    layout.xaxis.range = [minYear, maxYear];
+    layout.yaxis.range = [0, maxVal * 1.05];
     if (isOverview) {
-      var label = state.deepDiveTax || '';
+      var parts = (state.deepDiveTax || '').split('|');
+      var label = parts[1] || parts[0] || '';
       if (label.length > 25) label = label.substring(0, 22) + '...';
       layout.title = { text: label, font: { size: 13 } };
     }
@@ -452,7 +623,7 @@ TaxMix.charts = {
     var divId = isOverview ? 'taxmix-overview-' + panelId : 'taxmix-detail-chart';
     switch (panelId) {
       case 'taxmix': this.updateTaxMix(state, divId, isOverview); break;
-      case 'fedstate': this.updateFedState(state, divId, isOverview); break;
+      case 'states': this.updateStateComparison(state, divId, isOverview); break;
       case 'pareto': this.updatePareto(state, divId, isOverview); break;
       case 'deepdive': this.updateDeepDive(state, divId, isOverview); break;
     }
@@ -461,7 +632,7 @@ TaxMix.charts = {
   updateAll: function(state) {
     if (state.view === 'overview') {
       var self = this;
-      ['taxmix', 'fedstate', 'pareto', 'deepdive'].forEach(function(id) {
+      ['taxmix', 'states', 'pareto', 'deepdive'].forEach(function(id) {
         self.updatePanel(id, state, true);
       });
     } else {
