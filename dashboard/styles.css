@@ -1,45 +1,47 @@
 /* =============================================================================
    TaxMix Dashboard — All styles scoped with .taxmix- prefix
+   Requires dashboard-theme.css loaded first for design tokens.
    ============================================================================= */
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  margin: 0;
-  padding: 0;
-  background: #f5f6f8;
+  font-family: var(--dash-font-family);
+  background: var(--dash-bg-page);
+  color: var(--dash-color-text);
 }
 
 .taxmix {
   display: flex;
   flex-direction: column;
-  height: 85vh;
+  height: 100vh;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 14px;
-  color: #333;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  margin: 16px;
+  background: var(--dash-bg-surface);
 }
 
 /* -- Header ---------------------------------------------------------------- */
 
 .taxmix-header {
   flex-shrink: 0;
-  padding: 12px 16px 8px;
+  padding: var(--dash-spacing-lg) var(--dash-spacing-2xl);
+  background: var(--dash-color-primary);
+  color: var(--dash-color-primary-text);
 }
 
 .taxmix-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1a1a2e;
+  font-size: var(--dash-font-size-title);
+  font-weight: 600;
 }
 
 .taxmix-subtitle {
-  font-size: 11px;
-  color: #888;
+  font-size: var(--dash-font-size-body-sm);
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+.taxmix-source {
+  font-size: var(--dash-font-size-caption);
+  opacity: 0.6;
   margin-top: 2px;
 }
 
@@ -48,42 +50,44 @@ body {
 .taxmix-tabs {
   flex-shrink: 0;
   display: flex;
-  gap: 4px;
-  padding: 0 16px 8px;
-  border-bottom: 1px solid #e0e0e0;
+  gap: var(--dash-spacing-xs);
+  padding: var(--dash-spacing-sm) var(--dash-spacing-2xl);
+  background: var(--dash-bg-surface);
+  border-bottom: 1px solid var(--dash-border-color);
+  align-items: center;
 }
 
 .taxmix-tab {
-  padding: 6px 14px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: #f8f8f8;
-  color: #555;
-  font-size: 13px;
+  font-size: var(--dash-font-size-body-sm);
+  padding: var(--dash-spacing-xs) var(--dash-spacing-lg);
+  border: 1px solid var(--dash-border-color);
+  border-radius: var(--dash-border-radius-sm);
+  background: var(--dash-bg-surface);
+  color: var(--dash-color-text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: all var(--dash-transition-fast);
 }
 
 .taxmix-tab:hover {
-  background: #eef;
+  background: var(--dash-bg-hover);
 }
 
 .taxmix-tab.active {
-  background: #1a1a2e;
-  color: #fff;
-  border-color: #1a1a2e;
+  background: var(--dash-color-primary);
+  color: var(--dash-color-primary-text);
+  border-color: var(--dash-color-primary);
 }
 
 /* -- Filter Bar ------------------------------------------------------------ */
 
 .taxmix-filters {
   flex-shrink: 0;
-  padding: 6px 16px;
-  border-bottom: 1px solid #e8ecf0;
-  background: #fafbfc;
+  padding: 6px var(--dash-spacing-xl);
+  border-bottom: 1px solid var(--dash-border-light);
+  background: var(--dash-bg-panel-header);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--dash-spacing-md);
   align-items: center;
 }
 
@@ -91,33 +95,39 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  margin-right: 12px;
+  gap: var(--dash-spacing-xs);
+  margin-right: var(--dash-spacing-lg);
 }
 
 .taxmix-filter-label {
-  font-size: 11px;
+  font-size: var(--dash-font-size-label);
   font-weight: 600;
-  color: #666;
+  color: var(--dash-color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  margin-right: 4px;
+  margin-right: var(--dash-spacing-xs);
   white-space: nowrap;
+}
+
+.taxmix-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dash-spacing-xs);
 }
 
 .taxmix-filter-item {
+  font-size: var(--dash-font-size-body-sm);
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
-  padding: 2px 4px;
-  border-radius: 3px;
+  padding: 2px var(--dash-spacing-xs);
+  border-radius: var(--dash-border-radius-xs);
 }
 
 .taxmix-filter-item:hover {
-  background: #eef;
+  background: var(--dash-bg-hover);
 }
 
 .taxmix-filter-item input[type="checkbox"] {
@@ -140,24 +150,24 @@ body {
 /* -- Toggle Buttons -------------------------------------------------------- */
 
 .taxmix-toggle-btn {
-  padding: 4px 10px;
-  border: 1px solid #ccc;
-  border-radius: 3px;
-  background: #fff;
-  color: #555;
-  font-size: 12px;
+  padding: var(--dash-spacing-xs) 10px;
+  border: 1px solid var(--dash-border-color);
+  border-radius: var(--dash-border-radius-xs);
+  background: var(--dash-bg-surface);
+  color: var(--dash-color-text-secondary);
+  font-size: var(--dash-font-size-body-sm);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--dash-transition-fast);
 }
 
 .taxmix-toggle-btn:hover {
-  background: #eef;
+  background: var(--dash-bg-hover);
 }
 
 .taxmix-toggle-btn.active {
-  background: #1a1a2e;
-  color: #fff;
-  border-color: #1a1a2e;
+  background: var(--dash-color-primary);
+  color: var(--dash-color-primary-text);
+  border-color: var(--dash-color-primary);
 }
 
 /* -- Year Slider ----------------------------------------------------------- */
@@ -168,19 +178,19 @@ body {
 }
 
 .taxmix-year-label {
-  font-size: 13px;
+  font-size: var(--dash-font-size-panel-title);
   font-weight: 600;
-  margin-left: 8px;
-  color: #333;
+  margin-left: var(--dash-spacing-md);
+  color: var(--dash-color-text);
 }
 
 /* -- Tax Select ------------------------------------------------------------ */
 
 .taxmix-tax-select {
-  font-size: 13px;
-  padding: 4px 8px;
-  border: 1px solid #ccc;
-  border-radius: 3px;
+  font-size: var(--dash-font-size-panel-title);
+  padding: var(--dash-spacing-xs) var(--dash-spacing-md);
+  border: 1px solid var(--dash-border-color);
+  border-radius: var(--dash-border-radius-xs);
   max-width: 350px;
 }
 
@@ -189,7 +199,8 @@ body {
 .taxmix-main {
   flex: 1;
   min-height: 0;
-  position: relative;
+  overflow: auto;
+  padding: 10px;
 }
 
 /* -- Grid (Overview) ------------------------------------------------------- */
@@ -199,8 +210,7 @@ body {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   height: 100%;
-  gap: 8px;
-  padding: 8px;
+  gap: 10px;
 }
 
 /* -- Panel ----------------------------------------------------------------- */
@@ -209,18 +219,65 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border: 1px solid #e8ecf0;
-  border-radius: 4px;
-  background: #fff;
+  border: 1px solid var(--dash-border-color);
+  border-radius: var(--dash-border-radius);
+  background: var(--dash-bg-surface);
+  overflow: hidden;
 }
 
 .taxmix-panel-overview {
   cursor: pointer;
-  transition: box-shadow 0.15s;
+  transition: box-shadow var(--dash-transition-fast);
 }
 
 .taxmix-panel-overview:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--dash-shadow-hover);
+}
+
+.taxmix-panel-header {
+  flex-shrink: 0;
+  padding: var(--dash-spacing-md) var(--dash-spacing-lg);
+  background: var(--dash-bg-panel-header);
+  border-bottom: 1px solid var(--dash-border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.taxmix-panel-header h3 {
+  font-size: var(--dash-font-size-panel-title);
+  font-weight: 600;
+  color: var(--dash-color-primary);
+}
+
+.taxmix-panel-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.taxmix-panel-subtitle {
+  font-size: var(--dash-font-size-label);
+  color: var(--dash-color-text-muted);
+  line-height: 1.4;
+}
+
+.taxmix-panel-controls {
+  display: flex;
+  gap: var(--dash-spacing-sm);
+  align-items: center;
+  font-size: var(--dash-font-size-label);
+  color: var(--dash-color-text-secondary);
+}
+
+.taxmix-panel-controls select,
+.taxmix-panel-controls button {
+  font-size: var(--dash-font-size-label);
+  padding: 2px 6px;
+  border: 1px solid var(--dash-border-color);
+  border-radius: var(--dash-border-radius-xs);
+  background: var(--dash-bg-surface);
+  cursor: pointer;
 }
 
 .taxmix-panel-chart {
@@ -230,46 +287,51 @@ body {
 
 .taxmix-panel-detail {
   height: 100%;
-  margin: 8px;
+  margin: var(--dash-spacing-md);
+}
+
+.taxmix-panel-detail .taxmix-panel-header {
+  align-items: flex-start;
 }
 
 .taxmix-panel-footer {
   flex-shrink: 0;
-  padding: 6px 12px;
-  background: #f8fafc;
-  border-top: 1px solid #e8ecf0;
-  font-size: 10px;
-  color: #888;
+  padding: var(--dash-spacing-md) var(--dash-spacing-lg);
+  background: var(--dash-bg-panel-header);
+  border-top: 1px solid var(--dash-border-light);
+  font-size: var(--dash-font-size-caption);
+  color: var(--dash-color-text-faint);
   text-align: right;
 }
 
 /* -- Loading --------------------------------------------------------------- */
 
 .taxmix-loading {
-  padding: 40px;
-  text-align: center;
-  color: #888;
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: var(--dash-font-size-base);
+  color: var(--dash-color-text-faint);
 }
 
 /* -- Responsive ------------------------------------------------------------ */
+
+@media (max-width: 800px) {
+  .taxmix-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(4, 1fr);
+  }
+}
 
 @media (max-width: 600px) {
   .taxmix {
     height: auto;
     min-height: 100vh;
-    margin: 0;
-    border: none;
-    border-radius: 0;
   }
 
   .taxmix-tabs {
     flex-wrap: wrap;
-  }
-
-  .taxmix-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
   }
 
   .taxmix-filters {

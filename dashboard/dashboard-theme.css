@@ -1,0 +1,55 @@
+/* =============================================================================
+   Shared Dashboard Theme — Design tokens for PBO data dashboards
+   Include this file before project-specific styles.
+   ============================================================================= */
+
+:root {
+  /* -- Typography ---------------------------------------------------------- */
+  --dash-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --dash-font-size-base: 14px;
+  --dash-font-size-title: 18px;
+  --dash-font-size-panel-title: 13px;
+  --dash-font-size-label: 11px;
+  --dash-font-size-body-sm: 12px;
+  --dash-font-size-caption: 10px;
+
+  /* -- Brand / Primary ----------------------------------------------------- */
+  --dash-color-primary: #1a365d;
+  --dash-color-primary-text: #fff;
+  --dash-color-primary-muted: rgba(255, 255, 255, 0.8);
+  --dash-color-primary-subtle: rgba(255, 255, 255, 0.6);
+
+  /* -- Text ---------------------------------------------------------------- */
+  --dash-color-text: #333;
+  --dash-color-text-secondary: #555;
+  --dash-color-text-muted: #666;
+  --dash-color-text-faint: #888;
+
+  /* -- Backgrounds --------------------------------------------------------- */
+  --dash-bg-page: #f5f5f5;
+  --dash-bg-surface: #fff;
+  --dash-bg-filter: #f0f4f8;
+  --dash-bg-panel-header: #f8fafc;
+  --dash-bg-hover: #e8edf2;
+
+  /* -- Borders ------------------------------------------------------------- */
+  --dash-border-color: #d0d7de;
+  --dash-border-light: #e8ecf0;
+  --dash-border-radius: 6px;
+  --dash-border-radius-sm: 4px;
+  --dash-border-radius-xs: 3px;
+
+  /* -- Shadows ------------------------------------------------------------- */
+  --dash-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.12);
+
+  /* -- Spacing ------------------------------------------------------------- */
+  --dash-spacing-xs: 4px;
+  --dash-spacing-sm: 6px;
+  --dash-spacing-md: 8px;
+  --dash-spacing-lg: 12px;
+  --dash-spacing-xl: 16px;
+  --dash-spacing-2xl: 20px;
+
+  /* -- Transitions --------------------------------------------------------- */
+  --dash-transition-fast: 0.15s;
+}

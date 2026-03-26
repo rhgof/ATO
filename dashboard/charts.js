@@ -66,7 +66,7 @@ TaxMix.charts = {
     var govLevel = state.govLevel;
     var rows = state.allRows;
     var colorMap = state.colorMap;
-    var showPct = state.showPercentage;
+    var showPct = state.taxmixShowPct;
     var showDetail = state.showBothDetail;
     var years = state.metadata.years.map(function(y) { return y.start; });
     var fmt = TaxMix.charts.formatValue;
@@ -302,13 +302,13 @@ TaxMix.charts = {
 
   updateTaxMix: function(state, divId, isOverview) {
     var traces = this.buildTaxMix(state);
-    var yTitle = state.showPercentage ? 'Share (%)' : 'Revenue';
+    var yTitle = state.taxmixShowPct ? 'Share (%)' : 'Revenue';
     var layout = this.baseLayout({
       xTitle: 'Year', yTitle: yTitle,
       showLegend: !isOverview, title: isOverview
     });
-    if (isOverview) layout.title = { text: 'Tax Mix Over Time', font: { size: 13 } };
-    if (state.showPercentage) {
+    if (isOverview) layout.title = '';
+    if (state.taxmixShowPct) {
       layout.yaxis.range = [0, 100];
       layout.yaxis.ticksuffix = '%';
     }
@@ -322,7 +322,7 @@ TaxMix.charts = {
 
   buildStateComparison: function(state) {
     var yearStart = state.statesYear;
-    var showPct = state.showPercentage;
+    var showPct = state.statesShowPct;
     var rows = state.allRows;
     var colorMap = state.colorMap;
     var fmt = TaxMix.charts.formatValue;
@@ -410,15 +410,15 @@ TaxMix.charts = {
       return y.start === state.statesYear;
     });
     var yearLabel = fiscalYear ? fiscalYear.fiscal : state.statesYear;
-    var yTitle = state.showPercentage ? 'Share (%)' : 'Revenue';
+    var yTitle = state.statesShowPct ? 'Share (%)' : 'Revenue';
 
     var layout = this.baseLayout({
       xTitle: '', yTitle: yTitle,
       showLegend: !isOverview, title: isOverview
     });
     layout.barmode = 'stack';
-    if (isOverview) layout.title = { text: 'States (' + yearLabel + ')', font: { size: 13 } };
-    if (state.showPercentage) {
+    if (isOverview) layout.title = '';
+    if (state.statesShowPct) {
       layout.yaxis.range = [0, 100];
       layout.yaxis.ticksuffix = '%';
     }
@@ -506,7 +506,7 @@ TaxMix.charts = {
       xTitle: '', yTitle: 'Revenue',
       showLegend: false, rightAxis: true, title: isOverview
     });
-    if (isOverview) layout.title = { text: 'Tax Pareto (' + yearLabel + ')', font: { size: 13 } };
+    if (isOverview) layout.title = '';
     layout.yaxis2 = {
       title: { text: 'Cumulative %', automargin: true },
       overlaying: 'y', side: 'right', range: [0, 105],
@@ -605,12 +605,7 @@ TaxMix.charts = {
     });
     layout.xaxis.range = [minYear, maxYear];
     layout.yaxis.range = [0, maxVal * 1.05];
-    if (isOverview) {
-      var parts = (state.deepDiveTax || '').split('|');
-      var label = parts[1] || parts[0] || '';
-      if (label.length > 25) label = label.substring(0, 22) + '...';
-      layout.title = { text: label, font: { size: 13 } };
-    }
+    if (isOverview) layout.title = '';
     if (isOverview) this.render(divId, traces, layout);
     else this.renderDetail(divId, traces, layout);
   },
@@ -637,6 +632,7 @@ TaxMix.charts = {
       });
     } else {
       this.updatePanel(state.view, state, false);
+      TaxMix.controls.updateSubtitle();
     }
   }
 };

@@ -10,7 +10,8 @@ TaxMix.controls = {
   state: {
     view: 'overview',
     govLevel: 'Both',
-    showPercentage: false,
+    taxmixShowPct: false,
+    statesShowPct: false,
     showBothDetail: false,
     paretoYear: 2022,
     statesYear: 2022,
@@ -97,9 +98,13 @@ TaxMix.controls = {
     // Header
     var header = document.createElement('div');
     header.className = 'taxmix-header';
+    var now = new Date();
+    var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var dateStr = months[now.getMonth()] + ' ' + now.getFullYear();
     header.innerHTML =
-      '<div class="taxmix-title">Australia\'s Tax Mix 1901-2023</div>' +
-      '<div class="taxmix-subtitle">Source: Parliamentary Budget Office · pbo.gov.au · Nominal dollars ($\'000)</div>';
+      '<div class="taxmix-title">Australia\'s Tax Mix 1901\u20132023</div>' +
+      '<div class="taxmix-subtitle">Nominal dollars ($\'000)</div>' +
+      '<div class="taxmix-source">Source: Parliamentary Budget Office \u00B7 pbo.gov.au | @deadinlongrun.bsky.social | ' + dateStr + '</div>';
     container.appendChild(header);
 
     // Tabs
@@ -166,10 +171,11 @@ TaxMix.controls = {
     // Government Level toggle (overview, taxmix, pareto)
     if (view === 'overview' || view === 'taxmix' || view === 'pareto') {
       var govGroup = this.createFilterGroup('Gov Level');
-      ['Federal', 'State', 'Both'].forEach(function(level) {
+      [['Federal', 'Federal'], ['State', 'State'], ['Both', 'Federal and State']].forEach(function(pair) {
+        var level = pair[0], label = pair[1];
         var btn = document.createElement('button');
         btn.className = 'taxmix-toggle-btn' + (self.state.govLevel === level ? ' active' : '');
-        btn.textContent = level;
+        btn.textContent = label;
         btn.addEventListener('click', function() {
           self.state.govLevel = level;
           self.renderFilters();
@@ -180,16 +186,17 @@ TaxMix.controls = {
       el.appendChild(govGroup);
     }
 
-    // Abs/% toggle (taxmix, states)
+    // Abs/% toggle (taxmix, states) — independent per view
     if (view === 'taxmix' || view === 'states') {
+      var pctKey = view === 'taxmix' ? 'taxmixShowPct' : 'statesShowPct';
       var pctGroup = this.createFilterGroup('Display');
       ['Absolute ($)', 'Share (%)'].forEach(function(label, idx) {
         var btn = document.createElement('button');
-        var isActive = (idx === 0 && !self.state.showPercentage) || (idx === 1 && self.state.showPercentage);
+        var isActive = (idx === 0 && !self.state[pctKey]) || (idx === 1 && self.state[pctKey]);
         btn.className = 'taxmix-toggle-btn' + (isActive ? ' active' : '');
         btn.textContent = label;
         btn.addEventListener('click', function() {
-          self.state.showPercentage = idx === 1;
+          self.state[pctKey] = idx === 1;
           self.renderFilters();
           TaxMix.charts.updateAll(self.state);
         });
@@ -383,6 +390,183 @@ TaxMix.controls = {
   },
 
   // =========================================================================
+  // Panel Titles & Subtitles
+  // =========================================================================
+
+  PANEL_TITLES: {
+    taxmix: 'Tax Mix Over Time',
+    states: 'State Comparison',
+    pareto: 'Tax Pareto',
+    deepdive: 'Deep Dive'
+  },
+
+  _govLevelLabel: function(level) {
+    return level === 'Both' ? 'Federal and State' : level;
+  },
+
+  getSubtitle: function() {
+    var state = this.state;
+    var view = state.view;
+    var line1 = '';
+
+    switch (view) {
+      case 'taxmix':
+        line1 = this._govLevelLabel(state.govLevel);
+        line1 += ' \u00B7 ' + (state.taxmixShowPct ? 'Share (%)' : 'Absolute ($)');
+        if (state.govLevel !== 'State' && state.showBothDetail) line1 += ' \u00B7 Detail';
+        break;
+      case 'states':
+        var stFy = state.metadata.years.find(function(y) { return y.start === state.statesYear; });
+        line1 = (stFy ? stFy.fiscal : state.statesYear);
+        line1 += ' \u00B7 ' + (state.statesShowPct ? 'Share (%)' : 'Absolute ($)');
+        break;
+      case 'pareto':
+        var pFy = state.metadata.years.find(function(y) { return y.start === state.paretoYear; });
+        line1 = (pFy ? pFy.fiscal : state.paretoYear) + ' \u00B7 ' + this._govLevelLabel(state.govLevel);
+        break;
+      case 'deepdive':
+        var parts = (state.deepDiveTax || '').split('|');
+        var govLabel = parts[0] || '';
+        var taxName = parts[1] || '';
+        line1 = taxName + ' \u00B7 ' + govLabel;
+        var jurSummary = this._filterSummary(
+          state.selectedJurisdictions,
+          state.metadata.jurisdictions,
+          'Jurisdictions'
+        );
+        line1 += '<br>' + jurSummary;
+        break;
+    }
+
+    return line1;
+  },
+
+  updateSubtitle: function() {
+    var el = document.getElementById('taxmix-subtitle');
+    if (!el) return;
+    el.innerHTML = this.getSubtitle();
+  },
+
+  _filterSummary: function(selected, options, label) {
+    var names = options.filter(function(o) { return selected[o]; });
+    var count = names.length;
+    if (count === options.length) return label + ': All';
+    if (count === 0) return label + ': None';
+    var shown = names.map(function(j) {
+      return TaxMix.data.JURISDICTION_ABBREV[j] || j;
+    }).slice(0, 4).join(', ');
+    if (names.length > 4) shown += ' etc.';
+    return label + ': ' + shown + ' (' + count + ' of ' + options.length + ')';
+  },
+
+  // =========================================================================
+  // Overview Panel Controls
+  // =========================================================================
+
+  _buildSelect: function(options, currentValue, onChange) {
+    var sel = document.createElement('select');
+    options.forEach(function(opt) {
+      var o = document.createElement('option');
+      if (typeof opt === 'object') {
+        o.value = opt.v;
+        o.textContent = opt.l;
+        if (opt.v == currentValue) o.selected = true;
+      } else {
+        o.value = opt;
+        o.textContent = opt;
+        if (opt == currentValue) o.selected = true;
+      }
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', function(e) {
+      e.stopPropagation();
+      onChange(sel.value);
+    });
+    return sel;
+  },
+
+  _addOverviewControls: function(panelId, container) {
+    var self = this;
+    var state = this.state;
+
+    if (panelId === 'taxmix') {
+      var govSel = this._buildSelect(
+        [{ v: 'Federal', l: 'Federal' }, { v: 'State', l: 'State' }, { v: 'Both', l: 'Fed & State' }],
+        state.govLevel,
+        function(val) {
+          state.govLevel = val;
+          self.renderFilters();
+          TaxMix.charts.updateAll(state);
+        }
+      );
+      container.appendChild(govSel);
+
+      var pctBtn = document.createElement('button');
+      pctBtn.textContent = state.taxmixShowPct ? '$' : '%';
+      pctBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        state.taxmixShowPct = !state.taxmixShowPct;
+        pctBtn.textContent = state.taxmixShowPct ? '$' : '%';
+        self.renderFilters();
+        TaxMix.charts.updateAll(state);
+      });
+      container.appendChild(pctBtn);
+    }
+
+    if (panelId === 'states') {
+      var years = state.metadata.years.map(function(y) {
+        return { v: y.start, l: y.fiscal };
+      });
+      var yearSel = this._buildSelect(years, state.statesYear, function(val) {
+        state.statesYear = parseInt(val);
+        TaxMix.charts.updateAll(state);
+      });
+      container.appendChild(yearSel);
+
+      var pctBtn2 = document.createElement('button');
+      pctBtn2.textContent = state.statesShowPct ? '$' : '%';
+      pctBtn2.addEventListener('click', function(e) {
+        e.stopPropagation();
+        state.statesShowPct = !state.statesShowPct;
+        pctBtn2.textContent = state.statesShowPct ? '$' : '%';
+        self.renderFilters();
+        TaxMix.charts.updateAll(state);
+      });
+      container.appendChild(pctBtn2);
+    }
+
+    if (panelId === 'pareto') {
+      var pYears = state.metadata.years.map(function(y) {
+        return { v: y.start, l: y.fiscal };
+      });
+      var pYearSel = this._buildSelect(pYears, state.paretoYear, function(val) {
+        state.paretoYear = parseInt(val);
+        TaxMix.charts.updateAll(state);
+      });
+      container.appendChild(pYearSel);
+    }
+
+    if (panelId === 'deepdive') {
+      var taxOpts = [];
+      state.metadata.stateTaxes.forEach(function(t) {
+        var val = 'State/Territory/Local|' + t;
+        var label = t.length > 20 ? t.substring(0, 18) + '...' : t;
+        taxOpts.push({ v: val, l: label });
+      });
+      state.metadata.federalTaxes.forEach(function(t) {
+        var val = 'Australian Government|' + t;
+        var label = t.length > 20 ? t.substring(0, 18) + '...' : t;
+        taxOpts.push({ v: val, l: label });
+      });
+      var taxSel = this._buildSelect(taxOpts, state.deepDiveTax, function(val) {
+        state.deepDiveTax = val;
+        TaxMix.charts.updateAll(state);
+      });
+      container.appendChild(taxSel);
+    }
+  },
+
+  // =========================================================================
   // Main Area: Overview Grid or Detail Panel
   // =========================================================================
 
@@ -406,13 +590,30 @@ TaxMix.controls = {
       panels.forEach(function(p) {
         var panel = document.createElement('div');
         panel.className = 'taxmix-panel taxmix-panel-overview';
-        panel.addEventListener('click', function() {
+        panel.addEventListener('click', function(e) {
+          // Don't drill down if user clicked a control
+          if (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
           self.state.view = p.id;
           self.updateTabs();
           self.renderFilters();
           self.renderMainArea();
           TaxMix.charts.updateAll(self.state);
         });
+
+        // Panel header with title + controls
+        var header = document.createElement('div');
+        header.className = 'taxmix-panel-header';
+
+        var title = document.createElement('h3');
+        title.textContent = self.PANEL_TITLES[p.id];
+        header.appendChild(title);
+
+        var controls = document.createElement('div');
+        controls.className = 'taxmix-panel-controls';
+        self._addOverviewControls(p.id, controls);
+        header.appendChild(controls);
+
+        panel.appendChild(header);
 
         var chart = document.createElement('div');
         chart.className = 'taxmix-panel-chart';
@@ -427,6 +628,24 @@ TaxMix.controls = {
       var panel = document.createElement('div');
       panel.className = 'taxmix-panel taxmix-panel-detail';
 
+      var header = document.createElement('div');
+      header.className = 'taxmix-panel-header';
+
+      var titleBlock = document.createElement('div');
+      titleBlock.className = 'taxmix-panel-title-block';
+
+      var title = document.createElement('h3');
+      title.textContent = this.PANEL_TITLES[this.state.view] || '';
+      titleBlock.appendChild(title);
+
+      var subtitle = document.createElement('div');
+      subtitle.className = 'taxmix-panel-subtitle';
+      subtitle.id = 'taxmix-subtitle';
+      titleBlock.appendChild(subtitle);
+
+      header.appendChild(titleBlock);
+      panel.appendChild(header);
+
       var chart = document.createElement('div');
       chart.className = 'taxmix-panel-chart';
       chart.id = 'taxmix-detail-chart';
@@ -434,7 +653,10 @@ TaxMix.controls = {
 
       var footer = document.createElement('div');
       footer.className = 'taxmix-panel-footer';
-      footer.textContent = 'Source: Parliamentary Budget Office · pbo.gov.au · Nominal dollars ($\'000)';
+      var now2 = new Date();
+      var months2 = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      var dateStr2 = months2[now2.getMonth()] + ' ' + now2.getFullYear();
+      footer.textContent = 'Source: Parliamentary Budget Office \u00B7 pbo.gov.au | @deadinlongrun.bsky.social | ' + dateStr2;
       panel.appendChild(footer);
 
       main.appendChild(panel);
